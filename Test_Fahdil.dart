@@ -1,5 +1,3 @@
 void main{
-  while (1<2){
-    print("Boom");
-  }
+    print("Hello I'm Fahdil this is the start of my flutter project PickMyDish");
 }
