@@ -1,237 +1,90 @@
 import 'package:flutter/material.dart';
-import '../models/recipe.dart';
-import 'recipe_detail_screen.dart';
+import '../app/routes.dart';
 
-class ResultsScreen extends StatelessWidget {
-  final List<Recipe> recipes;
-  final List<String> selectedIngredients;
+class SplashScreen extends StatefulWidget {
+  const SplashScreen({super.key});
 
-  const ResultsScreen({
-    super.key,
-    required this.recipes,
-    required this.selectedIngredients,
-  });
+  @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
 
-  void _viewRecipeDetails(BuildContext context, Recipe recipe) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => RecipeDetailScreen(recipe: recipe),
-      ),
-    );
+class _SplashScreenState extends State<SplashScreen> {
+  @override
+  void initState() {
+    super.initState();
+    _navigateToHome();
+  }
+
+  void _navigateToHome() async {
+    // Simulate app initialization
+    await Future.delayed(const Duration(seconds: 2));
+    
+    if (mounted) {
+      AppRoutes.replaceWith(context, AppRoutes.home);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Recommended Meals'),
-        backgroundColor: Colors.blue.shade700,
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: recipes.isEmpty
-          ? _buildEmptyState()
-          : _buildResultsList(),
-    );
-  }
-
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
+      backgroundColor: Colors.blue.shade700,
+      body: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.search_off,
-              size: 64,
-              color: Colors.grey.shade400,
+            // App Icon/Logo
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.restaurant_menu,
+                size: 60,
+                color: Colors.blue,
+              ),
             ),
-            const SizedBox(height: 16),
-            Text(
-              'No recipes found',
+            const SizedBox(height: 32),
+            
+            // App Name
+            const Text(
+              'PickMyDish',
               style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey.shade600,
+                fontSize: 36,
+                fontWeight: FontWeight.bold,
+                color: Colors.white,
+                letterSpacing: 1.2,
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Try adjusting your filters or selecting different ingredients',
-              textAlign: TextAlign.center,
+            
+            // Tagline
+            const Text(
+              'What should I eat today?',
               style: TextStyle(
-                color: Colors.grey.shade500,
+                fontSize: 16,
+                color: Colors.white70,
+                letterSpacing: 0.5,
               ),
+            ),
+            const SizedBox(height: 48),
+            
+            // Loading indicator
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
             ),
           ],
         ),
       ),
     );
-  }
-
-  Widget _buildResultsList() {
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: recipes.length,
-      itemBuilder: (context, index) {
-        final recipe = recipes[index];
-        final matchingIngredients = selectedIngredients
-            .where((ingredient) => recipe.ingredients.contains(ingredient))
-            .length;
-
-        return Card(
-          elevation: 2,
-          margin: const EdgeInsets.only(bottom: 16),
-          child: InkWell(
-            onTap: () => _viewRecipeDetails(context, recipe),
-            borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          recipe.name,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.shade50,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Text(
-                          '${recipe.time} min',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Mood: ${recipe.mood.capitalize()}',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      ...recipe.ingredients.take(4).map((ingredient) {
-                        final isSelected =
-                            selectedIngredients.contains(ingredient);
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isSelected
-                                ? Colors.green.shade50
-                                : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: isSelected
-                                  ? Colors.green.shade300
-                                  : Colors.grey.shade300,
-                            ),
-                          ),
-                          child: Text(
-                            ingredient,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isSelected
-                                  ? Colors.green.shade800
-                                  : Colors.grey.shade700,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                        );
-                      }),
-                      if (recipe.ingredients.length > 4)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '+${recipe.ingredients.length - 4} more',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  if (selectedIngredients.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Matches $matchingIngredients of your ${selectedIngredients.length} ingredients',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.green.shade700,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 12),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () => _viewRecipeDetails(context, recipe),
-                      style: TextButton.styleFrom(
-                        foregroundColor: Colors.blue.shade700,
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text('View Recipe'),
-                          SizedBox(width: 4),
-                          Icon(Icons.arrow_forward, size: 16),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-extension StringExtension on String {
-  String capitalize() {
-    return "${this[0].toUpperCase()}${substring(1).toLowerCase()}";
   }
 }
