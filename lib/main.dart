@@ -115,18 +115,69 @@ class Paper {
   }
 }
 
+// ========== AUTHENTICATION SERVICE ==========
+class AuthService {
+  // Mock user database - in real app, this would connect to a backend
+  final List<User> _users = [
+    User(
+      id: 'admin1',
+      username: 'admin',
+      email: 'admin@edupapers.com',
+      isAdmin: true,
+      contributionPoints: 1000,
+      joinDate: DateTime(2023, 1, 1),
+    ),
+    User(
+      id: 'student123',
+      username: 'john_doe',
+      email: 'john@university.edu',
+      isAdmin: false,
+      contributionPoints: 150,
+      joinDate: DateTime(2023, 9, 1),
+    ),
+    User(
+      id: 'student456',
+      username: 'sarah_johnson',
+      email: 'sarah@university.edu',
+      isAdmin: false,
+      contributionPoints: 200,
+      joinDate: DateTime(2023, 8, 15),
+    ),
+  ];
+
+  User? login(String username, String password) {
+    // Mock authentication - in real app, verify password with backend
+    if (password.isEmpty) return null;
+
+    return _users.firstWhere(
+      (user) => user.username == username,
+      orElse: () => throw Exception('User not found'),
+    );
+  }
+
+  User? getUserById(String userId) {
+    try {
+      return _users.firstWhere((user) => user.id == userId);
+    } catch (e) {
+      return null;
+    }
+  }
+}
+
 // ========== APP STATE MANAGEMENT ==========
 class AppState with ChangeNotifier {
   final List<Paper> _papers = [];
   final List<Paper> _uploadedPapers = [];
   User? _currentUser;
   bool _isOffline = false;
+  final AuthService _authService = AuthService();
 
   List<Paper> get papers =>
       _papers.where((p) => p.status == 'approved').toList();
   List<Paper> get uploadedPapers => _uploadedPapers;
   User? get currentUser => _currentUser;
   bool get isOffline => _isOffline;
+  bool get isLoggedIn => _currentUser != null;
 
   AppState() {
     _initializeMockData();
@@ -168,37 +219,35 @@ class AppState with ChangeNotifier {
       ),
     ]);
 
-    _currentUser = User(
-      id: 'student123',
-      username: 'john_doe',
-      email: 'john@university.edu',
-      isAdmin: false,
-      contributionPoints: 150,
-      joinDate: DateTime(2023, 9, 1),
-    );
+    // Don't auto-login anymore - user must login through the login screen
+  }
+
+  Future<bool> login(String username, String password) async {
+    try {
+      final user = _authService.login(username, password);
+      if (user != null) {
+        _currentUser = user;
+        notifyListeners();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  void logout() {
+    _currentUser = null;
+    notifyListeners();
   }
 
   void switchToAdmin() {
-    _currentUser = User(
-      id: 'admin1',
-      username: 'admin',
-      email: 'admin@edupapers.com',
-      isAdmin: true,
-      contributionPoints: 1000,
-      joinDate: DateTime(2023, 1, 1),
-    );
+    _currentUser = _authService.getUserById('admin1');
     notifyListeners();
   }
 
   void switchToStudent() {
-    _currentUser = User(
-      id: 'student123',
-      username: 'john_doe',
-      email: 'john@university.edu',
-      isAdmin: false,
-      contributionPoints: 150,
-      joinDate: DateTime(2023, 9, 1),
-    );
+    _currentUser = _authService.getUserById('student123');
     notifyListeners();
   }
 
@@ -234,6 +283,260 @@ class AppState with ChangeNotifier {
   }
 }
 
+// ========== LOGIN SCREEN ==========
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _usernameController = TextEditingController();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  String _errorMessage = '';
+
+  // Demo accounts for easy testing
+  final List<Map<String, String>> _demoAccounts = [
+    {'username': 'admin', 'password': 'admin123', 'role': 'Administrator'},
+    {'username': 'john_doe', 'password': 'student123', 'role': 'Student'},
+    {'username': 'sarah_johnson', 'password': 'student456', 'role': 'Student'},
+  ];
+
+  void _login() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() {
+        _isLoading = true;
+        _errorMessage = '';
+      });
+
+      final success = await Provider.of<AppState>(context, listen: false)
+          .login(_usernameController.text.trim(), _passwordController.text);
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (!success) {
+        setState(() {
+          _errorMessage = 'Invalid username or password';
+        });
+      }
+    }
+  }
+
+  void _useDemoAccount(String username, String password) {
+    setState(() {
+      _usernameController.text = username;
+      _passwordController.text = password;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          // Background Image with Dark Overlay
+          Container(
+            decoration: const BoxDecoration(
+              image: DecorationImage(
+                image: AssetImage("assets/images/bg1.jpg"),
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+          Container(
+            color: Colors.black.withOpacity(0.5),
+          ),
+          // Login Content
+          Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // App Logo/Title
+                  Card(
+                    color: Colors.white.withOpacity(0.9),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        children: [
+                          const Icon(
+                            Icons.school,
+                            size: 64,
+                            color: Colors.blue,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'PaperLink',
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineMedium
+                                ?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.blue,
+                                ),
+                          ),
+                          Text(
+                            'Educational Resource Platform',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(color: Colors.grey[600]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                  // Login Form
+                  Card(
+                    color: Colors.white.withOpacity(0.9),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            Text(
+                              'Sign In',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                            const SizedBox(height: 24),
+                            if (_errorMessage.isNotEmpty)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: Colors.red[50],
+                                  border: Border.all(color: Colors.red),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  children: [
+                                    const Icon(Icons.error, color: Colors.red),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: Text(
+                                        _errorMessage,
+                                        style:
+                                            const TextStyle(color: Colors.red),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            if (_errorMessage.isNotEmpty)
+                              const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _usernameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Username',
+                                prefixIcon: Icon(Icons.person),
+                                border: OutlineInputBorder(),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your username';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _passwordController,
+                              decoration: const InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: Icon(Icons.lock),
+                                border: OutlineInputBorder(),
+                              ),
+                              obscureText: true,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Please enter your password';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 50,
+                              child: _isLoading
+                                  ? const Center(
+                                      child: CircularProgressIndicator(),
+                                    )
+                                  : ElevatedButton(
+                                      onPressed: _login,
+                                      child: const Text('Sign In'),
+                                    ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // Demo Accounts
+                  Card(
+                    color: Colors.white.withOpacity(0.9),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Demo Accounts',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          const SizedBox(height: 12),
+                          ..._demoAccounts.map((account) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 8),
+                              child: OutlinedButton(
+                                onPressed: () => _useDemoAccount(
+                                  account['username']!,
+                                  account['password']!,
+                                ),
+                                child: Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(account['username']!),
+                                    Chip(
+                                      label: Text(account['role']!),
+                                      visualDensity: VisualDensity.compact,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _usernameController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+}
+
 // ========== DASHBOARD SCREEN ==========
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
@@ -242,6 +545,7 @@ class DashboardScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<AppState>(
       builder: (context, appState, child) {
+        final user = appState.currentUser!;
         final approvedCount = appState.papers.length;
         final pendingCount =
             appState.uploadedPapers.where((p) => p.status == 'pending').length;
@@ -252,35 +556,64 @@ class DashboardScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Card(
+                color: Colors.white.withOpacity(0.85),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      const CircleAvatar(
+                      CircleAvatar(
                         radius: 30,
-                        child: Icon(Icons.person, size: 30),
+                        backgroundColor:
+                            user.isAdmin ? Colors.amber : Colors.blue,
+                        child: Icon(
+                          user.isAdmin
+                              ? Icons.admin_panel_settings
+                              : Icons.person,
+                          size: 30,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(width: 16),
-                      const Expanded(
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Welcome back, john_doe!'),
-                            SizedBox(height: 4),
-                            Text('University Student'),
-                            SizedBox(height: 4),
+                            Text('Welcome back, ${user.username}!'),
+                            const SizedBox(height: 4),
+                            Text(user.isAdmin
+                                ? 'Administrator'
+                                : 'University Student'),
+                            const SizedBox(height: 4),
                             Row(
                               children: [
                                 Icon(Icons.emoji_events,
                                     size: 16, color: Colors.amber),
-                                SizedBox(width: 4),
-                                Text('150 Contribution Points',
-                                    style: TextStyle(fontSize: 12)),
+                                const SizedBox(width: 4),
+                                Text(
+                                    '${user.contributionPoints} Contribution Points',
+                                    style: const TextStyle(fontSize: 12)),
                               ],
                             ),
                           ],
                         ),
                       ),
+                      if (user.isAdmin)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.amber,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'ADMIN',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -290,6 +623,7 @@ class DashboardScreen extends StatelessWidget {
                 'Quick Stats',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
+                      color: Colors.white,
                     ),
               ),
               const SizedBox(height: 12),
@@ -308,6 +642,7 @@ class DashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
               Card(
+                color: Colors.white.withOpacity(0.85),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -329,12 +664,24 @@ class DashboardScreen extends StatelessWidget {
                         icon: const Icon(Icons.search),
                         label: const Text('Browse Library'),
                       ),
+                      if (user.isAdmin) ...[
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
+                          onPressed: () => _navigateToAdmin(context),
+                          icon: const Icon(Icons.admin_panel_settings),
+                          label: const Text('Admin Panel'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.amber,
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
               ),
               const SizedBox(height: 20),
               Card(
+                color: Colors.white.withOpacity(0.85),
                 child: Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(
@@ -363,7 +710,7 @@ class DashboardScreen extends StatelessWidget {
       IconData icon, Color color) {
     return Expanded(
       child: Card(
-        color: color.withAlpha(40),
+        color: Colors.white.withOpacity(0.85),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -406,6 +753,13 @@ class DashboardScreen extends StatelessWidget {
     final homeState = context.findAncestorStateOfType<_HomeScreenState>();
     if (homeState != null) {
       homeState.changeIndex(2);
+    }
+  }
+
+  void _navigateToAdmin(BuildContext context) {
+    final homeState = context.findAncestorStateOfType<_HomeScreenState>();
+    if (homeState != null) {
+      homeState.changeIndex(3);
     }
   }
 
@@ -611,10 +965,12 @@ class _UploadScreenState extends State<UploadScreen> {
             'Upload Educational Content',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
+                  color: Colors.white,
                 ),
           ),
           const SizedBox(height: 20),
           Card(
+            color: Colors.white.withOpacity(0.85),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -644,6 +1000,7 @@ class _UploadScreenState extends State<UploadScreen> {
           ),
           const SizedBox(height: 16),
           Card(
+            color: Colors.white.withOpacity(0.85),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -681,6 +1038,7 @@ class _UploadScreenState extends State<UploadScreen> {
           ),
           const SizedBox(height: 16),
           Card(
+            color: Colors.white.withOpacity(0.85),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -819,6 +1177,7 @@ class _UploadScreenState extends State<UploadScreen> {
           const SizedBox(height: 16),
           if (_isUploading) ...[
             Card(
+              color: Colors.white.withOpacity(0.85),
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -846,6 +1205,8 @@ class _UploadScreenState extends State<UploadScreen> {
                 : 'Upload ${_getContentTypeLabel(_selectedContentType)}'),
             style: ElevatedButton.styleFrom(
               minimumSize: const Size(double.infinity, 50),
+              backgroundColor: Colors.blue,
+              foregroundColor: Colors.white,
             ),
           ),
         ],
@@ -901,6 +1262,8 @@ class LibraryScreen extends StatelessWidget {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(25),
                   ),
+                  filled: true,
+                  fillColor: Colors.white.withOpacity(0.85),
                 ),
               ),
             ),
@@ -910,11 +1273,11 @@ class LibraryScreen extends StatelessWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.search_off, size: 64, color: Colors.grey),
+                          Icon(Icons.search_off, size: 64, color: Colors.white),
                           SizedBox(height: 16),
                           Text('No papers found',
                               style:
-                                  TextStyle(fontSize: 18, color: Colors.grey)),
+                                  TextStyle(fontSize: 18, color: Colors.white)),
                         ],
                       ),
                     )
@@ -935,6 +1298,7 @@ class LibraryScreen extends StatelessWidget {
 
   Widget _buildPaperCard(BuildContext context, Paper paper) {
     return Card(
+      color: Colors.white.withOpacity(0.85),
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1124,14 +1488,57 @@ class AdminScreen extends StatelessWidget {
             .toList();
 
         return pendingPapers.isEmpty
-            ? const Center(child: Text('No papers pending review 🎉'))
-            : ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: pendingPapers.length,
-                itemBuilder: (context, index) {
-                  final paper = pendingPapers[index];
-                  return _buildPendingPaperCard(context, paper, appState);
-                },
+            ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle, size: 64, color: Colors.white),
+                    SizedBox(height: 16),
+                    Text(
+                      'No papers pending review 🎉',
+                      style: TextStyle(color: Colors.white, fontSize: 18),
+                    ),
+                  ],
+                ),
+              )
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Card(
+                      color: Colors.amber.withOpacity(0.9),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber,
+                                color: Colors.white),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Text(
+                                '${pendingPapers.length} papers awaiting approval',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.all(16),
+                      itemCount: pendingPapers.length,
+                      itemBuilder: (context, index) {
+                        final paper = pendingPapers[index];
+                        return _buildPendingPaperCard(context, paper, appState);
+                      },
+                    ),
+                  ),
+                ],
               );
       },
     );
@@ -1140,6 +1547,7 @@ class AdminScreen extends StatelessWidget {
   Widget _buildPendingPaperCard(
       BuildContext context, Paper paper, AppState appState) {
     return Card(
+      color: Colors.white.withOpacity(0.85),
       margin: const EdgeInsets.only(bottom: 16),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1177,6 +1585,13 @@ class AdminScreen extends StatelessWidget {
               const SizedBox(width: 4),
               Text(paper.uploaderName,
                   style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              const Spacer(),
+              const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+              const SizedBox(width: 4),
+              Text(
+                '${paper.uploadDate.day}/${paper.uploadDate.month}/${paper.uploadDate.year}',
+                style: const TextStyle(fontSize: 12, color: Colors.grey),
+              ),
             ]),
             const SizedBox(height: 16),
             Row(children: [
@@ -1246,10 +1661,24 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'EduPapers',
-      theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
-      home: const HomeScreen(),
+      title: 'PaperLink',
+      theme: ThemeData(
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
+      ),
+      home: const AuthWrapper(),
     );
+  }
+}
+
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final appState = Provider.of<AppState>(context);
+
+    return appState.isLoggedIn ? const HomeScreen() : const LoginScreen();
   }
 }
 
@@ -1284,44 +1713,65 @@ class _HomeScreenState extends State<HomeScreen> {
           if (isAdmin) const AdminScreen(),
         ];
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('EduPapers'),
-            backgroundColor: Colors.blue,
-            foregroundColor: Colors.white,
-            actions: [
-              IconButton(
-                icon:
-                    Icon(appState.isOffline ? Icons.offline_bolt : Icons.cloud),
-                onPressed: () => appState.toggleOfflineMode(),
+        return Stack(
+          children: [
+            // Background Image with Dark Overlay
+            Container(
+              decoration: const BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage("assets/images/bg1.jpg"),
+                  fit: BoxFit.cover,
+                ),
               ),
-              IconButton(
-                icon: Icon(isAdmin ? Icons.person : Icons.admin_panel_settings),
-                onPressed: () => isAdmin
-                    ? appState.switchToStudent()
-                    : appState.switchToAdmin(),
+            ),
+            // Dark overlay for better readability
+            Container(
+              color: Colors.black.withOpacity(0.3),
+            ),
+            // App Content
+            Scaffold(
+              backgroundColor: Colors.transparent,
+              appBar: AppBar(
+                title: const Text('PaperLink'),
+                backgroundColor: Colors.blue.withOpacity(0.8),
+                foregroundColor: Colors.white,
+                elevation: 0,
+                actions: [
+                  IconButton(
+                    icon: Icon(
+                        appState.isOffline ? Icons.offline_bolt : Icons.cloud),
+                    onPressed: () => appState.toggleOfflineMode(),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.logout),
+                    onPressed: () {
+                      appState.logout();
+                    },
+                  ),
+                ],
               ),
-            ],
-          ),
-          body: currentIndex < screens.length
-              ? screens[currentIndex]
-              : screens[0],
-          bottomNavigationBar: BottomNavigationBar(
-            currentIndex: currentIndex.clamp(0, screens.length - 1),
-            onTap: (index) => setState(() => currentIndex = index),
-            items: [
-              const BottomNavigationBarItem(
-                  icon: Icon(Icons.dashboard), label: 'Dashboard'),
-              const BottomNavigationBarItem(
-                  icon: Icon(Icons.upload), label: 'Upload'),
-              const BottomNavigationBarItem(
-                  icon: Icon(Icons.library_books), label: 'Library'),
-              if (isAdmin)
-                const BottomNavigationBarItem(
-                    icon: Icon(Icons.admin_panel_settings), label: 'Admin'),
-            ],
-            type: BottomNavigationBarType.fixed,
-          ),
+              body: currentIndex < screens.length
+                  ? screens[currentIndex]
+                  : screens[0],
+              bottomNavigationBar: BottomNavigationBar(
+                backgroundColor: Colors.white.withOpacity(0.9),
+                currentIndex: currentIndex.clamp(0, screens.length - 1),
+                onTap: (index) => setState(() => currentIndex = index),
+                items: [
+                  const BottomNavigationBarItem(
+                      icon: Icon(Icons.dashboard), label: 'Dashboard'),
+                  const BottomNavigationBarItem(
+                      icon: Icon(Icons.upload), label: 'Upload'),
+                  const BottomNavigationBarItem(
+                      icon: Icon(Icons.library_books), label: 'Library'),
+                  if (isAdmin)
+                    const BottomNavigationBarItem(
+                        icon: Icon(Icons.admin_panel_settings), label: 'Admin'),
+                ],
+                type: BottomNavigationBarType.fixed,
+              ),
+            ),
+          ],
         );
       },
     );
