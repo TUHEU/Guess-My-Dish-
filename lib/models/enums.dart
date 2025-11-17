@@ -1,0 +1,13 @@
+enum ContentType {
+  pastPaper,
+  notes,
+  answerSheet,
+  quiz,
+}
+
+enum UniversityLevel {
+  level1,
+  level2,
+  level3,
+  level4,
+}
